@@ -134,12 +134,11 @@ void merge_labels(value_idx* labels_a,
   // mask can induce connection between groups.
 
   // Step 1: compute connected components in the label equivalence graph
+  auto launcher = raft::launcher{blocks, threads, 0, stream};
   bool host_m;
   do {
     RAFT_CUDA_TRY(cudaMemsetAsync(m, false, sizeof(bool), stream));
-
-    propagate_label_kernel<value_idx, TPB_X>
-      <<<blocks, threads, 0, stream>>>(labels_a, labels_b, R, mask, m, N);
+    launcher(propagate_label_kernel<value_idx, TPB_X>, labels_a, labels_b, R, mask, m, N);
     RAFT_CUDA_TRY(cudaPeekAtLastError());
 
     raft::update_host(&host_m, m, 1, stream);
@@ -147,8 +146,8 @@ void merge_labels(value_idx* labels_a,
   } while (host_m);
 
   // Step 2: re-assign minimum equivalent label
-  reassign_label_kernel<value_idx, TPB_X>
-    <<<blocks, threads, 0, stream>>>(labels_a, labels_b, R, N, MAX_LABEL);
+  raft::launcher{blocks, threads, 0, stream}(
+    reassign_label_kernel<value_idx, TPB_X>, labels_a, labels_b, R, N, MAX_LABEL);
   RAFT_CUDA_TRY(cudaPeekAtLastError());
 }
 

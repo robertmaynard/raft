@@ -20,6 +20,7 @@
 #include <raft/distance/detail/pairwise_distance_base.cuh>  // PairwiseDistances
 #include <raft/distance/detail/pairwise_matrix/params.cuh>  // pairwise_matrix_params
 #include <raft/util/arch.cuh>                               // raft::util::arch::SM_compute_arch
+#include <raft/util/cudart_utils.hpp>                       // raft::launcher
 
 namespace raft::distance::detail {
 
@@ -103,7 +104,8 @@ struct pairwise_matrix_sm60_wrapper {
               pairwise_matrix_params<IdxT, DataT, OutT, FinOpT> params,
               cudaStream_t stream)
   {
-    kernel_ptr<<<grid, block, smem_size, stream>>>(distance_op, params);
+    raft::launcher{grid, block, static_cast<size_t>(smem_size), stream}(
+      kernel_ptr, distance_op, params);
     RAFT_CUDA_TRY(cudaGetLastError());
   }
 };

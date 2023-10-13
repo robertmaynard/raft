@@ -81,8 +81,9 @@ inline void coalesced_normalize_thin(Type* out,
 {
   dim3 grid(ceildiv(N, (IdxType)Policy::RowsPerBlock), 1, 1);
   dim3 block(Policy::LogicalWarpSize, Policy::RowsPerBlock, 1);
-  coalesced_normalize_thin_kernel<Policy>
-    <<<grid, block, 0, stream>>>(out, in, D, N, init, main_op, reduce_op, fin_op, eps);
+  auto launcher = raft::launcher{grid, block, 0, stream};
+  launcher(
+    coalesced_normalize_thin_kernel<Policy>, out, in, D, N, init, main_op, reduce_op, fin_op, eps);
   RAFT_CUDA_TRY(cudaPeekAtLastError());
 }
 
@@ -138,8 +139,9 @@ inline void coalesced_normalize_medium(Type* out,
                                        FinalLambda fin_op,
                                        Type eps)
 {
-  coalesced_normalize_medium_kernel<TPB>
-    <<<N, TPB, 0, stream>>>(out, in, D, N, init, main_op, reduce_op, fin_op, eps);
+  auto launcher = raft::launcher{static_cast<unsigned int>(N), TPB, 0, stream};
+  launcher(
+    coalesced_normalize_medium_kernel<TPB>, out, in, D, N, init, main_op, reduce_op, fin_op, eps);
   RAFT_CUDA_TRY(cudaPeekAtLastError());
 }
 

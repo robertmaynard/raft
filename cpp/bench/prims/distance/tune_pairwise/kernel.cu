@@ -49,40 +49,43 @@ void launch_kernel(pairwise_matrix_params params, dim3 grid, cudaStream_t stream
                                                                OutT,
                                                                FinOpT>;
 
-  kernel<<<grid, block, smem_size, stream>>>(distance_op, params);
-  RAFT_CUDA_TRY(cudaGetLastError());
-}
+  raft::launcher
+  {
+    grid, block, smem_size, stream
+    {kernel, distance_op, params);
+      RAFT_CUDA_TRY(cudaGetLastError());
+    }
 
-void get_block_size(int& m, int& n, int& k)
-{
-  m = Policy::Mblk;
-  n = Policy::Nblk;
-  k = Policy::Kblk;
-}
+    void get_block_size(int& m, int& n, int& k)
+    {
+      m = Policy::Mblk;
+      n = Policy::Nblk;
+      k = Policy::Kblk;
+    }
 
-void* get_kernel_ptr()
-{
-  auto kernel = raft::distance::detail::pairwise_matrix_kernel<Policy,
-                                                               row_major,
-                                                               decltype(sm_compat_range),
-                                                               OpT,
-                                                               IdxT,
-                                                               DataT,
-                                                               OutT,
-                                                               FinOpT>;
-  return reinterpret_cast<void*>(kernel);
-}
+    void* get_kernel_ptr()
+    {
+      auto kernel = raft::distance::detail::pairwise_matrix_kernel<Policy,
+                                                                   row_major,
+                                                                   decltype(sm_compat_range),
+                                                                   OpT,
+                                                                   IdxT,
+                                                                   DataT,
+                                                                   OutT,
+                                                                   FinOpT>;
+      return reinterpret_cast<void*>(kernel);
+    }
 
-int get_max_occupancy()
-{
-  void* kernel_ptr = get_kernel_ptr();
-  int max_occupancy;
-  int smem_size = OpT::shared_mem_size<Policy>();
+    int get_max_occupancy()
+    {
+      void* kernel_ptr = get_kernel_ptr();
+      int max_occupancy;
+      int smem_size = OpT::shared_mem_size<Policy>();
 
-  RAFT_CUDA_TRY(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-    &max_occupancy, kernel_ptr, Policy::Nthreads, smem_size));
+      RAFT_CUDA_TRY(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+        &max_occupancy, kernel_ptr, Policy::Nthreads, smem_size));
 
-  return max_occupancy;
-}
+      return max_occupancy;
+    }
 
-}  // namespace raft::bench::distance::tune
+  }  // namespace raft::bench::distance::tune

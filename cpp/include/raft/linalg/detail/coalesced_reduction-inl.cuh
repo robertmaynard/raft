@@ -90,8 +90,17 @@ void coalescedReductionThin(OutType* dots,
     "coalescedReductionThin<%d,%d>", Policy::LogicalWarpSize, Policy::RowsPerBlock);
   dim3 threads(Policy::LogicalWarpSize, Policy::RowsPerBlock, 1);
   dim3 blocks(ceildiv<IdxType>(N, Policy::RowsPerBlock), 1, 1);
-  coalescedReductionThinKernel<Policy>
-    <<<blocks, threads, 0, stream>>>(dots, data, D, N, init, main_op, reduce_op, final_op, inplace);
+  auto launcher = raft::launcher{blocks, threads, 0, stream};
+  launcher(coalescedReductionThinKernel<Policy>,
+           dots,
+           data,
+           D,
+           N,
+           init,
+           main_op,
+           reduce_op,
+           final_op,
+           inplace);
   RAFT_CUDA_TRY(cudaPeekAtLastError());
 }
 
@@ -184,8 +193,17 @@ void coalescedReductionMedium(OutType* dots,
                               FinalLambda final_op   = raft::identity_op())
 {
   common::nvtx::range<common::nvtx::domain::raft> fun_scope("coalescedReductionMedium<%d>", TPB);
-  coalescedReductionMediumKernel<TPB>
-    <<<N, TPB, 0, stream>>>(dots, data, D, N, init, main_op, reduce_op, final_op, inplace);
+  auto launcher = raft::launcher{static_cast<unsigned int>(N), TPB, 0, stream};
+  launcher(coalescedReductionMediumKernel<TPB>,
+           dots,
+           data,
+           D,
+           N,
+           init,
+           main_op,
+           reduce_op,
+           final_op,
+           inplace);
   RAFT_CUDA_TRY(cudaPeekAtLastError());
 }
 
@@ -280,9 +298,15 @@ void coalescedReductionThick(OutType* dots,
    *  2. coalescedReductionThinKernel reduces [N x BlocksPerRow] to [N x 1]. It doesn't apply any
    *     main_op but applies final_op. If in-place, the existing and new values are reduced.
    */
-
-  coalescedReductionThickKernel<ThickPolicy>
-    <<<blocks, threads, 0, stream>>>(buffer.data(), data, D, N, init, main_op, reduce_op);
+  auto launcher = raft::launcher{blocks, threads, 0, stream};
+  launcher(coalescedReductionThickKernel<ThickPolicy>,
+           buffer.data(),
+           data,
+           D,
+           N,
+           init,
+           main_op,
+           reduce_op);
   RAFT_CUDA_TRY(cudaPeekAtLastError());
 
   coalescedReductionThin<ThinPolicy>(dots,

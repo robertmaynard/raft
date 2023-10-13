@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <raft/core/detail/macros.hpp>
 #include <raft/core/error.hpp>
 #include <raft/util/cuda_rt_essentials.hpp>
 #include <raft/util/memory_pool.hpp>
@@ -40,6 +41,29 @@ namespace raft {
 __host__ __device__ constexpr inline int warp_size() { return 32; }
 
 __host__ __device__ constexpr inline unsigned int warp_full_mask() { return 0xffffffff; }
+
+/**
+ * @brief Central method to launch kernels in raft.
+ */
+struct launcher {
+  dim3 const grid;
+  dim3 const block;
+  size_t const shared_mem;
+  cudaStream_t const stream;
+
+  RAFT_HIDDEN_FUNCTION
+  launcher(dim3 grid_, dim3 block_, size_t shared_mem_, cudaStream_t stream_)
+    : grid(grid_), block(block_), shared_mem(shared_mem_), stream(stream_)
+  {
+  }
+
+  template <typename... Args>
+  RAFT_HIDDEN_FUNCTION inline __host__ void operator()(void (*kernel)(Args...),
+                                                       Args const&... args) const
+  {
+    kernel<<<grid, block, shared_mem, stream>>>(args...);
+  }
+};
 
 /**
  * @brief A kernel grid configuration construction gadget for simple one-dimensional mapping

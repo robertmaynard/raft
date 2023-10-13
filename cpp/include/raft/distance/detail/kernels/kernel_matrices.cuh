@@ -160,14 +160,14 @@ class PolynomialKernel : public GramMatrixBase<math_t> {
   {
     const int n_minor = is_row_major ? cols : rows;
     if (ld == n_minor) {
-      polynomial_kernel_nopad<<<raft::ceildiv<size_t>((size_t)rows * cols, 128), 128, 0, stream>>>(
-        inout, rows * cols, exponent, gain, offset);
+      raft::launcher{raft::ceildiv<size_t>((size_t)rows * cols, 128), 128, 0, stream}(
+        polynomial_kernel_nopad, inout, rows * cols, exponent, gain, offset);
     } else {
       int n1                         = is_row_major ? cols : rows;
       int n2                         = is_row_major ? rows : cols;
       auto [grid_shape, block_shape] = generateLaunchConfig2dElementwiseOp(n1, n2);
-      polynomial_kernel<<<grid_shape, block_shape, 0, stream>>>(
-        inout, ld, n1, n2, exponent, gain, offset);
+      raft::launcher{grid_shape, block_shape, 0, stream}(
+        polynomial_kernel, inout, ld, n1, n2, exponent, gain, offset);
     }
     RAFT_CUDA_TRY(cudaPeekAtLastError());
   }
@@ -334,13 +334,14 @@ class TanhKernel : public GramMatrixBase<math_t> {
   {
     const int n_minor = is_row_major ? cols : rows;
     if (ld == n_minor) {
-      tanh_kernel_nopad<<<raft::ceildiv<size_t>((size_t)rows * cols, 128), 128, 0, stream>>>(
-        inout, rows * cols, gain, offset);
+      raft::launcher{raft::ceildiv<size_t>((size_t)rows * cols, 128), 128, 0, stream}(
+        tanh_kernel_nopad<<<>>>, inout, rows * cols, gain, offset);
     } else {
       int n1                         = is_row_major ? cols : rows;
       int n2                         = is_row_major ? rows : cols;
       auto [grid_shape, block_shape] = generateLaunchConfig2dElementwiseOp(n1, n2);
-      tanh_kernel<<<grid_shape, block_shape, 0, stream>>>(inout, ld, n1, n2, gain, offset);
+      raft::launcher{grid_shape, block_shape, 0, stream}(
+        tanh_kernel, inout, ld, n1, n2, gain, offset);
     }
     RAFT_CUDA_TRY(cudaPeekAtLastError());
   }
@@ -511,8 +512,8 @@ class RBFKernel : public GramMatrixBase<math_t> {
     math_t* norm_n1                = is_row_major ? norm_x2 : norm_x1;
     math_t* norm_n2                = is_row_major ? norm_x1 : norm_x2;
     auto [grid_shape, block_shape] = generateLaunchConfig2dElementwiseOp(n1, n2);
-    rbf_kernel_expanded<<<grid_shape, block_shape, 0, stream>>>(
-      inout, ld, n1, n2, norm_n1, norm_n2, gain);
+    raft::launcher{grid_shape, block_shape, 0, stream}(
+      rbf_kernel_expanded, inout, ld, n1, n2, norm_n1, norm_n2, gain);
   }
 
  public:

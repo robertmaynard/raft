@@ -49,7 +49,8 @@ void init_adj(bool* adj, index_t num_rows, index_t num_cols, index_t divisor, cu
   dim3 block(32, 32);
   const index_t max_y_grid_dim = 65535;
   dim3 grid(num_cols / 32 + 1, (int)min(num_rows / 32 + 1, max_y_grid_dim));
-  init_adj_kernel<index_t><<<grid, block, 0, stream>>>(adj, num_rows, num_cols, divisor);
+  raft::launcher{grid, block, 0, stream}(
+    init_adj_kernel<index_t>, adj, num_rows, num_cols, divisor);
   RAFT_CHECK_CUDA(stream);
 }
 

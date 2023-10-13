@@ -171,8 +171,8 @@ void make_monotonic(
   rmm::device_uvector<Type> map_ids(0, stream);
   int num_clusters = getUniquelabels(map_ids, in, N, stream);
 
-  map_label_kernel<Type, TPB_X><<<blocks, threads, 0, stream>>>(
-    map_ids.data(), num_clusters, in, out, N, filter_op, zero_based);
+  raft::launcher{blocks, threads, 0, stream}(
+    map_label_kernel<Type, TPB_X>, map_ids.data(), num_clusters, in, out, N, filter_op, zero_based);
 }
 
 /**

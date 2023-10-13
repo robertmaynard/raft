@@ -41,6 +41,7 @@
 #include <raft/matrix/argmin.cuh>
 #include <raft/matrix/gather.cuh>
 #include <raft/util/cuda_utils.cuh>
+#include <raft/util/cudart_utils.hpp>
 #include <raft/util/device_atomics.cuh>
 #include <raft/util/integer_utils.hpp>
 
@@ -555,18 +556,20 @@ auto adjust_centers(MathT* centers,
   const dim3 block_dim(WarpSize, kBlockDimY, 1);
   const dim3 grid_dim(1, raft::ceildiv(n_clusters, static_cast<IdxT>(kBlockDimY)), 1);
   rmm::device_scalar<IdxT> update_count(0, stream, device_memory);
-  adjust_centers_kernel<kBlockDimY><<<grid_dim, block_dim, 0, stream>>>(centers,
-                                                                        n_clusters,
-                                                                        dim,
-                                                                        dataset,
-                                                                        n_rows,
-                                                                        labels,
-                                                                        cluster_sizes,
-                                                                        threshold,
-                                                                        average,
-                                                                        ofst,
-                                                                        update_count.data(),
-                                                                        mapping_op);
+  auto launcher = raft::launcher{grid_dim, block_dim, 0, stream};
+  launcher(adjust_centers_kernel<kBlockDimY>,
+           centers,
+           n_clusters,
+           dim,
+           dataset,
+           n_rows,
+           labels,
+           cluster_sizes,
+           threshold,
+           average,
+           ofst,
+           update_count.data(),
+           mapping_op);
   adjusted = update_count.value(stream) > 0;  // NB: rmm scalar performs the sync
 
   return adjusted;

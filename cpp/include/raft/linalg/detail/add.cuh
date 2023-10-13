@@ -54,7 +54,8 @@ void addDevScalar(
   // TODO: block dimension has not been tuned
   dim3 block(256);
   dim3 grid(raft::ceildiv(len, (IdxType)block.x));
-  add_dev_scalar_kernel<<<grid, block, 0, stream>>>(outDev, inDev, singleScalarDev, len);
+  raft::launcher{grid, block, 0, stream}(
+    add_dev_scalar_kernel, outDev, inDev, singleScalarDev, len);
   RAFT_CUDA_TRY(cudaPeekAtLastError());
 }
 

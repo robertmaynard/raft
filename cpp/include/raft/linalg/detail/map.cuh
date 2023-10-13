@@ -105,7 +105,9 @@ void map_call(rmm::cuda_stream_view stream, OutT* out_ptr, IdxT len, Func f, con
   const int threads =
     std::max<int>(WarpSize, std::min<IdxT>(raft::bound_by_power_of_two<IdxT>(len_vectorized), 256));
   const IdxT blocks = raft::div_rounding_up_unsafe<IdxT>(len_vectorized, threads);
-  map_kernel<R, PassOffset><<<blocks, threads, 0, stream>>>(out_ptr, len, f, in_ptrs...);
+  auto launcher     = raft::launcher{
+    static_cast<unsigned int>(blocks), static_cast<unsigned int>(threads), 0, stream};
+  launcher(map_kernel<R, PassOffset>, out_ptr, len, f, in_ptrs...);
 }
 
 constexpr int kCoalescedVectorSize = 16;

@@ -144,7 +144,7 @@ void pairwise_distances(const raft::resources& handle,
   value_idx nnz = m * m;
 
   value_idx blocks = raft::ceildiv(nnz, (value_idx)256);
-  fill_indices2<value_idx><<<blocks, 256, 0, stream>>>(indices, m, nnz);
+  raft::launcher{blocks, 256, 0, stream}(fill_indices2<value_idx>,indices, m, nnz);
 
   thrust::sequence(exec_policy, indptr, indptr + m, 0, (int)m);
 

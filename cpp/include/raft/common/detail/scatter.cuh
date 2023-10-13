@@ -45,7 +45,8 @@ void scatterImpl(
   DataT* out, const DataT* in, const IdxT* idx, IdxT len, Lambda op, cudaStream_t stream)
 {
   const IdxT nblks = raft::ceildiv(VecLen ? len / VecLen : len, (IdxT)TPB);
-  scatterKernel<DataT, VecLen, Lambda, IdxT><<<nblks, TPB, 0, stream>>>(out, in, idx, len, op);
+  raft::launcher{nblks, TPB, 0, stream}(
+    scatterKernel<DataT, VecLen, Lambda, IdxT>, out, in, idx, len, op);
   RAFT_CUDA_TRY(cudaGetLastError());
 }
 

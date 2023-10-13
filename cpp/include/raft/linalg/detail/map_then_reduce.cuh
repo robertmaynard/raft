@@ -87,9 +87,16 @@ void mapThenReduceImpl(OutType* out,
                        Args... args)
 {
   raft::update_device(out, &neutral, 1, stream);
-  const int nblks = raft::ceildiv(len, IdxType(TPB));
-  mapThenReduceKernel<InType, OutType, IdxType, MapOp, ReduceLambda, TPB, Args...>
-    <<<nblks, TPB, 0, stream>>>(out, len, neutral, map, op, in, args...);
+  const unsigned int nblks = raft::ceildiv(len, IdxType(TPB));
+  auto launcher            = raft::launcher{nblks, TPB, 0, stream};
+  launcher(mapThenReduceKernel<InType, OutType, IdxType, MapOp, ReduceLambda, TPB, Args...>,
+           out,
+           len,
+           neutral,
+           map,
+           op,
+           in,
+           args...);
   RAFT_CUDA_TRY(cudaPeekAtLastError());
 }
 

@@ -515,8 +515,9 @@ static int initializeCentroids(raft::resources const& handle,
     WARNING("error in k-means++ (could not pick centroid)");
 
   // Compute distances from first centroid
+  auto launcher = raft::launcher{gridDim_warp, blockDim_warp, 0, stream};
   RAFT_CUDA_TRY(cudaMemsetAsync(dists, 0, n * sizeof(value_type_t), stream));
-  computeDistances<<<gridDim_warp, blockDim_warp, 0, stream>>>(n, d, 1, obs, centroids, dists);
+  launcher(computeDistances, n, d, 1, obs, centroids, dists);
   RAFT_CHECK_CUDA(stream);
 
   // Choose remaining centroids
@@ -527,18 +528,17 @@ static int initializeCentroids(raft::resources const& handle,
 
     // Compute distances from ith centroid
     RAFT_CUDA_TRY(cudaMemsetAsync(dists + n, 0, n * sizeof(value_type_t), stream));
-    computeDistances<<<gridDim_warp, blockDim_warp, 0, stream>>>(
-      n, d, 1, obs, centroids + IDX(0, i, d), dists + n);
+    launcher(computeDistances, n, d, 1, obs, centroids + IDX(0, i, d), dists + n);
     RAFT_CHECK_CUDA(stream);
 
     // Recompute minimum distances
-    minDistances2<<<gridDim_block, BLOCK_SIZE, 0, stream>>>(n, dists, dists + n, codes, i);
+    launcher(computeDistances, n, dists, dists + n, codes, i);
     RAFT_CHECK_CUDA(stream);
   }
 
   // Compute cluster sizes
   RAFT_CUDA_TRY(cudaMemsetAsync(clusterSizes, 0, k * sizeof(index_type_t), stream));
-  computeClusterSizes<<<gridDim_block, BLOCK_SIZE, 0, stream>>>(n, codes, clusterSizes);
+  launcher(computeClusterSizes, n, codes, clusterSizes);
   RAFT_CHECK_CUDA(stream);
 
   return 0;
@@ -597,7 +597,8 @@ static int assignCentroids(raft::resources const& handle,
   gridDim.y = std::min(static_cast<unsigned>(k), grid_lower_bound);
   gridDim.z = std::min(ceildiv<unsigned>(n, BSIZE_DIV_WSIZE), grid_lower_bound);
 
-  computeDistances<<<gridDim, blockDim, 0, stream>>>(n, d, k, obs, centroids, dists);
+  auot launcher = raft::launcher{gridDim, blockDim, 0, stream};
+  launcher(computeDistances, n, d, k, obs, centroids, dists);
   RAFT_CHECK_CUDA(stream);
 
   // Find centroid closest to each observation vector
@@ -608,7 +609,7 @@ static int assignCentroids(raft::resources const& handle,
   gridDim.x  = std::min(ceildiv<unsigned>(n, BLOCK_SIZE), grid_lower_bound);
   gridDim.y  = 1;
   gridDim.z  = 1;
-  minDistances<<<gridDim, blockDim, 0, stream>>>(n, k, dists, codes, clusterSizes);
+  launcher(minDistances, n, k, dists, codes, clusterSizes);
   RAFT_CHECK_CUDA(stream);
 
   // Compute residual sum of squares
@@ -739,7 +740,7 @@ static int updateCentroids(raft::resources const& handle,
                std::min(ceildiv<unsigned>(k, BSIZE_DIV_WSIZE), grid_lower_bound),
                1};
 
-  divideCentroids<<<gridDim, blockDim, 0, stream>>>(d, k, clusterSizes, centroids);
+  raft::launcher{gridDim, blockDim, 0, stream}(divideCentroids, d, k, clusterSizes, centroids);
   RAFT_CHECK_CUDA(stream);
 
   return 0;
@@ -841,7 +842,7 @@ int kmeans(raft::resources const& handle,
                  std::min(ceildiv<unsigned>(n, BLOCK_SIZE / WARP_SIZE), grid_lower_bound)};
 
     RAFT_CUDA_TRY(cudaMemsetAsync(work, 0, n * k * sizeof(value_type_t), stream));
-    computeDistances<<<gridDim, blockDim, 0, stream>>>(n, d, 1, obs, centroids, work);
+    raft::launcher{gridDim, blockDim, 0, stream}(computeDistances, n, d, 1, obs, centroids, work);
     RAFT_CHECK_CUDA(stream);
     *residual_host = thrust::reduce(
       thrust_exec_policy, thrust::device_pointer_cast(work), thrust::device_pointer_cast(work + n));

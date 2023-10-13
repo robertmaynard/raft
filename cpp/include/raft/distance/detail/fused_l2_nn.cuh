@@ -97,7 +97,7 @@ template <typename DataT, typename OutT, typename IdxT, typename ReduceOpT>
 void initialize(OutT* min, IdxT m, DataT maxVal, ReduceOpT redOp, cudaStream_t stream)
 {
   auto blks = raft::ceildiv(m, 256);
-  initKernel<DataT, OutT, IdxT><<<blks, 256, 0, stream>>>(min, m, maxVal, redOp);
+  raft::launcher{blks, 256, 0, stream}(initKernel<DataT, OutT, IdxT>, min, m, maxVal, redOp);
 }
 
 // TODO: specialize this function for MinAndDistanceReduceOp<int, float>
@@ -299,14 +299,14 @@ void fusedL2NNImpl(OutT* min,
   typedef Policy P;
 
   dim3 blk(P::Nthreads);
-  auto nblks            = raft::ceildiv<int>(m, P::Nthreads);
+  dim3 nblks            = raft::ceildiv<int>(m, P::Nthreads);
   constexpr auto maxVal = std::numeric_limits<DataT>::max();
   typedef KeyValuePair<IdxT, DataT> KVPair;
 
   RAFT_CUDA_TRY(cudaMemsetAsync(workspace, 0, sizeof(int) * m, stream));
   if (initOutBuffer) {
-    initKernel<DataT, OutT, IdxT, ReduceOpT>
-      <<<nblks, P::Nthreads, 0, stream>>>(min, m, maxVal, redOp);
+    raft::launcher{nblks, blk, 0, stream}(
+      initKernel<DataT, OutT, IdxT, ReduceOpT>, min, m, maxVal, redOp);
     RAFT_CUDA_TRY(cudaGetLastError());
   }
 
@@ -374,8 +374,8 @@ void fusedL2NNImpl(OutT* min,
     constexpr size_t shmemSize = P::SmemSize + ((P::Mblk + P::Nblk) * sizeof(DataT));
     dim3 grid                  = launchConfigGenerator<P>(m, n, shmemSize, kernel);
 
-    kernel<<<grid, blk, shmemSize, stream>>>(
-      min, x, y, xn, yn, m, n, k, maxVal, workspace, redOp, pairRedOp, distance_op, fin_op);
+    raft::launcher{grid, blk, shmemSize, stream}(
+      kernel, min, x, y, xn, yn, m, n, k, maxVal, workspace, redOp, pairRedOp, distance_op, fin_op);
     RAFT_CUDA_TRY(cudaGetLastError());
   }
 }

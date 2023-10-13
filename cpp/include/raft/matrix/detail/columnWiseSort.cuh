@@ -22,9 +22,14 @@
 #include <map>
 #include <raft/util/cuda_utils.cuh>
 
-#define INST_BLOCK_SORT(keyIn, keyOut, valueInOut, rows, columns, blockSize, elemPT, stream)     \
-  devKeyValSortColumnPerRow<InType, OutType, blockSize, elemPT><<<rows, blockSize, 0, stream>>>( \
-    keyIn, keyOut, valueInOut, rows, columns, std::numeric_limits<InType>::max())
+#define INST_BLOCK_SORT(keyIn, keyOut, valueInOut, rows, columns, blockSize, elemPT, stream) \
+  launcher(devKeyValSortColumnPerRow<InType, OutType, blockSize, elemPT>,                    \
+           keyIn,                                                                            \
+           keyOut,                                                                           \
+           valueInOut,                                                                       \
+           rows,                                                                             \
+           columns,                                                                          \
+           std::numeric_limits<InType>::max())
 
 namespace raft {
 namespace matrix {
@@ -142,7 +147,7 @@ cudaError_t layoutIdx(OutType* in, int n_rows, int n_columns, cudaStream_t strea
   int totalElements = n_rows * n_columns;
   dim3 block(256);
   dim3 grid((totalElements + block.x - 1) / block.x);
-  devLayoutIdx<OutType><<<grid, block, 0, stream>>>(in, n_columns, totalElements);
+  raft::launcher{grid, block, 0, stream}(devLayoutIdx<OutType>, in, n_columns, totalElements);
   return cudaGetLastError();
 }
 
@@ -152,7 +157,7 @@ cudaError_t layoutSortOffset(T* in, T value, int n_times, cudaStream_t stream)
 {
   dim3 block(128);
   dim3 grid((n_times + block.x - 1) / block.x);
-  devOffsetKernel<T><<<grid, block, 0, stream>>>(in, value, n_times);
+  raft::launcher{grid, block, 0, stream}(devOffsetKernel<T>, in, value, n_times);
   return cudaGetLastError();
 }
 
@@ -211,6 +216,7 @@ void sortColumnsPerRow(const InType* in,
     // 512(blockSize) * 8 elements per thread = 71 register / thread
 
     // instantiate some kernel combinations
+    auto launcher = raft::launcher{rows, blockSize, 0, stream};
     if (n_columns <= 512)
       INST_BLOCK_SORT(in, sortedKeys, out, n_rows, n_columns, 128, 4, stream);
     else if (n_columns > 512 && n_columns <= 1024)

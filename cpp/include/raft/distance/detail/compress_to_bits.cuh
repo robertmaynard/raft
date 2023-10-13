@@ -116,7 +116,7 @@ void compress_to_bits(raft::resources const& handle,
 
   dim3 grid(num_SMs * blocks_per_sm);
   dim3 block(128);
-  compress_to_bits_kernel<<<grid, block, 0, stream>>>(in, out);
+  raft::launcher{grid, block, 0, stream}(compress_to_bits_kernel, in, out);
   RAFT_CUDA_TRY(cudaGetLastError());
 }
 

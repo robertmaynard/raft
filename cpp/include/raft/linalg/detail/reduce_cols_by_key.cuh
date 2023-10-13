@@ -121,18 +121,18 @@ void reduce_cols_by_key(const T* data,
   // and orders of magnitude faster for large input arrays).
   size_t cache_size = static_cast<size_t>(nrows * nkeys) * sizeof(T);
   if (cache_size <= 49152ull && nrows * ncols >= IdxType{8192}) {
-    constexpr int TPB = 256;
-    int n_sm          = raft::getMultiProcessorCount();
-    int target_nblks  = 4 * n_sm;
-    int max_nblks     = raft::ceildiv<IdxType>(nrows * ncols, TPB);
-    int nblks         = std::min(target_nblks, max_nblks);
-    reduce_cols_by_key_cached_kernel<<<nblks, TPB, cache_size, stream>>>(
-      data, keys, out, nrows, ncols, nkeys);
+    constexpr unsigned int TPB = 256;
+    unsigned int n_sm          = raft::getMultiProcessorCount();
+    unsigned int target_nblks  = 4 * n_sm;
+    unsigned int max_nblks     = raft::ceildiv<IdxType>(nrows * ncols, TPB);
+    unsigned int nblks         = std::min(target_nblks, max_nblks);
+    auto launcher              = raft::launcher{nblks, TPB, cache_size, stream};
+    launcher(reduce_cols_by_key_cached_kernel, data, keys, out, nrows, ncols, nkeys);
   } else {
-    constexpr int TPB = 256;
-    int nblks         = raft::ceildiv<IdxType>(nrows * ncols, TPB);
-    reduce_cols_by_key_direct_kernel<<<nblks, TPB, 0, stream>>>(
-      data, keys, out, nrows, ncols, nkeys);
+    constexpr unsigned int TPB = 256;
+    unsigned int nblks         = raft::ceildiv<IdxType>(nrows * ncols, TPB);
+    auto launcher              = raft::launcher{nblks, TPB, 0, stream};
+    launcher(reduce_cols_by_key_direct_kernel, data, keys, out, nrows, ncols, nkeys);
   }
   RAFT_CUDA_TRY(cudaPeekAtLastError());
 }
